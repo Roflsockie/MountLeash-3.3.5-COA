@@ -1,5 +1,13 @@
 # MountLeash (Ascension / CoA fork) — Changelog
 
+## 2026-11-22 (local, not pushed yet)
+
+- **Macro helper on the General tab.** A copyable multi-line box now shows the one-button macro, and an `Add Macro` button creates or updates the `MountLeash` macro in the General macro tab. The button checks combat lockdown and free slots, and reports success/no-op through `self:Print`.
+- **Weight spread reduced from W=8 to W=4.** With the PetLeash values, `+1 / Normal / -1` had probabilities ~87% / 11% / 1.4% — Low Priority was expected roughly once in 70 summons. With W=4 the same setup gives ~76% / 19% / 4.8%, so Low Priority shows up a few times in 50 pulls while High Priority still dominates.
+- **Pick log for analysis.** A `Log mount picks` toggle stores the last 500 summons (time, mount name, spell ID, source, weight index) in `MountLeashDB.pick_log`; `Clear pick log` and `/pl log` help manage it.
+- **In-game verification:** 50 macro presses with `+1 / Normal / -1` produced 39 / 8 / 3 picks (78% / 16% / 6%), matching the expected 76% / 19% / 5%. The macro button works with no Lua errors.
+- Verified with `verify-addon.mjs` (exit 0) and luaparse (all 5 `.lua` files OK). Not pushed yet — awaiting the owner's go-ahead.
+
 ## 2026-11-21 hotfix
 
 ### Fixed

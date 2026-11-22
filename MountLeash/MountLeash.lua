@@ -9,7 +9,12 @@ function addon.GetActiveSpecID()
 	return SpecializationUtil and SpecializationUtil.GetActiveSpecialization and SpecializationUtil.GetActiveSpecialization() or nil
 end
 
--- verify-allow: LibStub, ToggleDropDownMenu, UIDropDownMenu_AddButton, UIDropDownMenu_CreateInfo, UIDropDownMenu_Initialize, GENERAL, BATTLEGROUND, ENABLE, THE_MANASTORM, C_Manastorm.IsInManastorm, SpecializationUtil.GetActiveSpecialization
+-- verify-allow: LibStub, ToggleDropDownMenu, UIDropDownMenu_AddButton, UIDropDownMenu_CreateInfo, UIDropDownMenu_Initialize, GENERAL, BATTLEGROUND, ENABLE, THE_MANASTORM, C_Manastorm.IsInManastorm, SpecializationUtil.GetActiveSpecialization, GetMacroInfo, GetNumMacros, GetNumMacroIcons, GetMacroIconInfo, CreateMacro, EditMacro, InCombatLockdown
+
+local MACRO_NAME = "MountLeash"
+local MACRO_ICON = "Interface\\Icons\\INV_Box_MountCarrier_01"
+local MACRO_BODY = "#showtooltip\n/run if IsMounted() then Dismount() else MountLeash:SummonMount() end"
+local MAX_ACCOUNT_MACROS = 36
 
 -- Binding globals
 BINDING_HEADER_MOUNTLEASH = "MountLeash"
@@ -30,6 +35,8 @@ local defaults = {
 		dismount_air = false,
 		immediate_mount = true,
 		print_unable = false,
+		log_picks = false,
+		pick_log = {}, -- last 500 summoned mounts, for analysis
 		sets = {
 			-- locations
 			customLocations = {
@@ -127,6 +134,47 @@ local options = {
 							width = "double",
 							get = config_toggle_get,
 							set = config_toggle_set
+						},
+						macro = {
+							type = "group",
+							name = L["One-button macro"],
+							desc = L["Mounted: dismount. Not mounted: summon a mount with MountLeash."],
+							order = 20,
+							args = {
+								macroText = {
+									type = "input",
+									name = L["Macro text (copy to a button)"],
+									desc = L["Read-only: select the text below and copy it."],
+									order = 1,
+									width = "full",
+									multiline = 2,
+									get = function() return MACRO_BODY end,
+									set = function() end
+								},
+								addMacro = {
+									type = "execute",
+									name = L["Add Macro"],
+									desc = L["Creates or updates the macro in the General tab."],
+									order = 2,
+									func = function() addon:AddGeneralMacro() end
+								},
+							},
+						},
+						log_picks = {
+							type = "toggle",
+							name = L["Log mount picks"],
+							desc = L["Store the last 500 summoned mounts in MountLeashDB for analysis."],
+							order = 21,
+							width = "double",
+							get = config_toggle_get,
+							set = config_toggle_set
+						},
+						clearPickLog = {
+							type = "execute",
+							name = L["Clear pick log"],
+							desc = L["Clear the recorded summon log."],
+							order = 22,
+							func = function() wipe(addon.db.profile.pick_log) end
 						},
 					},
 				},
@@ -263,6 +311,14 @@ local options_slashcmd = {
 			order = 20,
 			func = function(info) addon:SummonMount() end
 		},
+		log = {
+			type = "execute",
+			name = L["Show pick log count"],
+			order = 30,
+			func = function()
+				addon:Print(L["Pick log entries: %d"]:format(#addon.db.profile.pick_log))
+			end
+		},
 	},
 }
 
@@ -341,6 +397,45 @@ end
 
 function addon:OpenOptions()
 	InterfaceOptionsFrame_OpenToCategory(self.optionsFrame)
+end
+
+local function MacroIconIndex(path)
+	for i = 1, GetNumMacroIcons() do
+		if GetMacroIconInfo(i) == path then return i end
+	end
+	return 1
+end
+
+function addon:AddGeneralMacro()
+	if InCombatLockdown() then
+		self:Print(L["Cannot create a macro while in combat."])
+		return
+	end
+
+	for i = 1, MAX_ACCOUNT_MACROS do
+		local name, _, body = GetMacroInfo(i)
+		if name == MACRO_NAME then
+			if body ~= MACRO_BODY then
+				EditMacro(i, MACRO_NAME, MACRO_ICON, MACRO_BODY)
+				self:Print(L["Macro updated in the General tab."])
+			else
+				self:Print(L["Macro already exists in the General tab."])
+			end
+			return
+		end
+	end
+
+	local accountMacros = GetNumMacros()
+	if accountMacros >= MAX_ACCOUNT_MACROS then
+		self:Print(L["No free General macro slots."])
+		return
+	end
+
+	if CreateMacro(MACRO_NAME, MacroIconIndex(MACRO_ICON), MACRO_BODY, false) then
+		self:Print(L["Macro added to the General tab."])
+	else
+		self:Print(L["Could not create the macro."])
+	end
 end
 
 -- utility functions
@@ -456,8 +551,9 @@ addon.MountChoices = {
 	"|cff7cfc00" .. L["Either"] .. "|r"
 }
 
--- Same weights as PetLeash (W = 8): 0, 8^-2, 8^-1, 8^0, 8^1, 8^2
-local MOUNT_WEIGHTS = { 0, 1 / 64, 1 / 8, 1, 8, 64 }
+-- Same ordering as PetLeash, but W = 4 instead of 8: 0, 4^-2, 4^-1, 4^0, 4^1, 4^2.
+-- The wider PetLeash spread made Low Priority (~1.4%) almost invisible in normal play.
+local MOUNT_WEIGHTS = { 0, 1 / 16, 1 / 4, 1, 4, 16 }
 addon.MountWeightChoices = {
 	"|cffff0000" .. L["Never"] .. "|r",
 	"|cffff6600-2|r " .. L["Extra Low Priority"],
@@ -621,13 +717,28 @@ local function mount_weight(self, spellid)
 	return MOUNT_WEIGHTS[self.db.profile.mount_weight[spellid] or 3]
 end
 
+local function LogPick(self, spellid, source)
+	if not self.db.profile.log_picks or not spellid then return end
+	local log = self.db.profile.pick_log
+	if #log >= 500 then table.remove(log, 1) end
+	table.insert(log, {
+		time = date("%Y-%m-%d %H:%M:%S"),
+		name = self.mount_map[spellid] and self.mount_map[spellid].name or tostring(spellid),
+		spellid = spellid,
+		source = source,
+		weight = self.db.profile.mount_weight[spellid] or 3,
+	})
+end
+
 local function pick_flat(self, mountlist)
 	mountlist = mountlist or self.usable_mounts
 	if #mountlist == 0 then return nil end
 
+	local chosen
 	if not self.db.profile.weighted_mounts then
-		local spellid = mountlist[math.random(#mountlist)]
-		return self.mount_map[spellid] and self.mount_map[spellid].id
+		chosen = mountlist[math.random(#mountlist)]
+		self.last_pick_spellid = chosen
+		return self.mount_map[chosen] and self.mount_map[chosen].id
 	end
 
 	local total = 0
@@ -637,27 +748,33 @@ local function pick_flat(self, mountlist)
 
 	-- all weights set to Never: fall back to a uniform pick
 	if total <= 0 then
-		local spellid = mountlist[math.random(#mountlist)]
-		return self.mount_map[spellid] and self.mount_map[spellid].id
+		chosen = mountlist[math.random(#mountlist)]
+		self.last_pick_spellid = chosen
+		return self.mount_map[chosen] and self.mount_map[chosen].id
 	end
 
 	local r = math.random() * total
 	for i = 1, #mountlist do
 		r = r - mount_weight(self, mountlist[i])
 		if r <= 0 then
-			return self.mount_map[mountlist[i]].id
+			chosen = mountlist[i]
+			self.last_pick_spellid = chosen
+			return self.mount_map[chosen].id
 		end
 	end
 
-	local spellid = mountlist[#mountlist]
-	return self.mount_map[spellid] and self.mount_map[spellid].id
+	chosen = mountlist[#mountlist]
+	self.last_pick_spellid = chosen
+	return self.mount_map[chosen] and self.mount_map[chosen].id
 end
 
 function addon:PickMount()
 	if (self.override_mounts and #self.override_mounts > 0) then
+		self.last_pick_source = "override"
 		return pick_flat(self, self.override_mounts)
 	end
 
+	self.last_pick_source = "global"
 	return pick_flat(self)
 end
 
@@ -670,7 +787,10 @@ function addon:SummonMount()
 	end
 	if (not was_mounted or (was_mounted and self.db.profile.immediate_mount)) and (CanSummonMount() and #self.usable_mounts > 0) then
 		local mountid = self:PickMount()
-		if mountid then CallCompanion("MOUNT", mountid) end
+		if mountid then
+			LogPick(self, self.last_pick_spellid, self.last_pick_source)
+			CallCompanion("MOUNT", mountid)
+		end
 	elseif self.db.profile.print_unable then
 		print("Unable to summon mount")
 	end

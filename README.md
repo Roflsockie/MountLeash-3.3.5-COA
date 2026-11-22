@@ -14,7 +14,12 @@ A Project Ascension-specific fork of **MountLeash v1.6.6** for WoW 3.3.5a (`Inte
 ## Hotfix (2026-11-21)
 
 - **Enabled Mounts tab no longer freezes.** The old config table created one AceGUI control for every known mount at once. Mounts are now split into pages of 25.
-- **Weighted mounts.** A `Weighted Mounts` toggle was added to the General tab and a `Weight` selector to every mount on the Enabled Mounts tab. Weights are the PetLeash values `Never / -2 / -1 / Normal / +1 / +2` (`0, 1/64, 1/8, 1, 8, 64`). Weights also apply to location and specialization override sets.
+- **Weighted mounts.** A `Weighted Mounts` toggle was added to the General tab and a `Weight` selector to every mount on the Enabled Mounts tab. Weights are `Never / -2 / -1 / Normal / +1 / +2` (`0, 1/16, 1/4, 1, 4, 16`) — the PetLeash ordering with a narrower spread so Low Priority is actually visible. Weights also apply to location and specialization override sets.
+- **One-button macro.** The General tab shows the macro text in a copyable box and has an `Add Macro` button that creates (or updates) the `MountLeash` macro in the General macro tab:
+  ```
+  #showtooltip
+  /run if IsMounted() then Dismount() else MountLeash:SummonMount() end
+  ```
 - **Safer Ascension APIs.** `SpecializationUtil.GetActiveSpecialization()` and `C_Manastorm.IsInManastorm()` are checked for existence before use.
 - **Bindings.xml** is now listed in the TOC; slash commands `/mountleash` and `/pl` are registered (`/pl config` opens settings, `/pl summon` summons, `/pl` alone prints help).
 
@@ -28,7 +33,7 @@ Before the first summon, open **Interface → Addons → MountLeash → Enabled 
 
 - Static addon verifier: `node E:\AI\Tools\wow335\verify-addon.mjs MountLeash --api-extra E:\AI\Tools\wow335\api-extra-335.json` — exit 0.
 - Lua syntax: all 5 `.lua` files parsed successfully.
-- In-game: options tab opens without a freeze; `+2` vs `Never` weighting and `/pl summon` confirmed by the user.
+- In-game: options tab opens without a freeze; `+2` vs `Never` weighting and `/pl summon` confirmed by the user. The 2026-11-22 macro button works with no errors; a 50-pull test with `+1 / Normal / -1` gave 39 / 8 / 3 picks (78% / 16% / 6%).
 
 ## Credits and license
 
