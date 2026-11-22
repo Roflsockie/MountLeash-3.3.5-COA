@@ -1,5 +1,7 @@
 # MountLeash (Ascension / CoA fork) — Changelog
 
+Fixes and feature work in this fork were discovered and implemented with the help of an AI assistant at the direction of the fork author Miss Click (2026-11-21/22).
+
 ## 2026-11-22 (local, not pushed yet)
 
 - **Macro helper on the General tab.** A copyable multi-line box now shows the one-button macro, and an `Add Macro` button creates or updates the `MountLeash` macro in the General macro tab. The button checks combat lockdown and free slots, and reports success/no-op through `self:Print`.

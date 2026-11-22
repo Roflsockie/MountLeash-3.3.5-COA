@@ -39,6 +39,7 @@ Before the first summon, open **Interface → Addons → MountLeash → Enabled 
 
 - Original **PetLeash**: End (endx7) — <https://www.wowinterface.com/downloads/info12359-PetLeash.html>
 - **MountLeash v1.6.6** and Ascension port: Xan-Asc / Xan. Original MIT notice is kept in [LICENSE](LICENSE).
-- 3.3.5a fixes and weighted support: Roflsockie.
+- **Fork author:** Miss Click (GitHub: Roflsockie).
+- **Bug fixes and improvements:** discovered and implemented with the help of an AI assistant (2026-11-21/22).
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete change list and remaining checks.
